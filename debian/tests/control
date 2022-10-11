@@ -1,0 +1,3 @@
+Tests: libportal-dev
+Restrictions: superficial
+Depends: build-essential, dbus, libportal-dev

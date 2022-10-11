@@ -1,0 +1,102 @@
+Source: libportal
+Section: libs
+Priority: optional
+Maintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>
+Uploaders:
+ Simon McVittie <smcv@debian.org>,
+Build-Depends:
+ debhelper-compat (= 13),
+ gtk-doc-tools,
+ libglib2.0-dev (>= 2.58),
+ libgstreamer-plugins-base1.0-dev <!noinsttest>,
+ libgtk-3-dev <!noinsttest>,
+ meson (>= 0.46.0),
+ pkg-config,
+Rules-Requires-Root: no
+Standards-Version: 4.6.0
+Homepage: https://github.com/flatpak/libportal
+Vcs-Git: https://salsa.debian.org/debian/libportal.git
+Vcs-Browser: https://salsa.debian.org/debian/libportal
+
+Package: libportal-dev
+Architecture: any
+Multi-Arch: same
+Section: libdevel
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ libglib2.0-dev (>= 2.58),
+ libportal0 (= ${binary:Version}),
+ pkg-config,
+ ${misc:Depends},
+Description: Flatpak portal library (development files)
+ libportal provides GIO-style C APIs for most Flatpak portals' D-Bus
+ interfaces. It is primarily intended for installation in Flatpak runtimes,
+ where applications can use it to interact with portals; it can also be
+ used to test the portal services.
+ .
+ See the xdg-desktop-portal package's description for more information
+ about portals.
+ .
+ This package contains development headers and the pkg-config file.
+
+Package: libportal-doc
+Build-Profiles: <!nodoc>
+Architecture: all
+Multi-Arch: foreign
+Section: doc
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ${misc:Depends},
+Description: Flatpak portal library (documentation)
+ libportal provides GIO-style C APIs for most Flatpak portals' D-Bus
+ interfaces. It is primarily intended for installation in Flatpak runtimes,
+ where applications can use it to interact with portals; it can also be
+ used to test the portal services.
+ .
+ See the xdg-desktop-portal package's description for more information
+ about portals.
+ .
+ This package contains API documentation.
+
+Package: libportal-tests
+Build-Profiles: <!noinsttest>
+Architecture: any
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Suggests:
+ gnome-backgrounds,
+Description: Flatpak portal library (test program)
+ libportal provides GIO-style C APIs for most Flatpak portals' D-Bus
+ interfaces. It is primarily intended for installation in Flatpak runtimes,
+ where applications can use it to interact with portals; it can also be
+ used to test the portal services.
+ .
+ See the xdg-desktop-portal package's description for more information
+ about portals.
+ .
+ This package contains the portal-test application, and will contain
+ "as-installed" test programs if they are added.
+
+Package: libportal0
+Architecture: any
+Multi-Arch: same
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Flatpak portal library
+ libportal provides GIO-style C APIs for most Flatpak portals' D-Bus
+ interfaces. It is primarily intended for installation in Flatpak runtimes,
+ where applications can use it to interact with portals; it can also be
+ used to test the portal services.
+ .
+ See the xdg-desktop-portal package's description for more information
+ about portals.
+ .
+ This package contains the shared library. Its ABI is not yet stable.

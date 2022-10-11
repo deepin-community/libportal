@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+built_binaries := $(shell dh_listpackages)
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,-O1 -Wl,-z,defs
+
+export VERBOSE=1
+
+meson_options =
+
+ifeq ($(filter libportal-tests,$(built_binaries)),)
+meson_options += -Dbuild-portal-test=false
+else
+meson_options += -Dbuild-portal-test=true
+endif
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure \
+		-- \
+		$(meson_options) \
+		$(NULL)

@@ -1,0 +1,41 @@
+#!/bin/sh
+
+set -e
+exec 2>&1
+set -u
+set -x
+
+if [ -z "${HOME-}" ] || ! [ -w "${HOME}" ]; then
+    export HOME="${AUTOPKGTEST_TMP}"
+fi
+
+cd "$AUTOPKGTEST_TMP"
+
+if [ -n "${DEB_HOST_GNU_TYPE:-}" ]; then
+    CROSS_COMPILE="$DEB_HOST_GNU_TYPE-"
+else
+    CROSS_COMPILE=
+fi
+
+cat > test.c <<'EOF'
+#include <glib.h>
+#include <libportal/portal.h>
+
+int main (int argc, char *argv[])
+{
+  XdpPortal *portal = NULL;
+
+  portal = xdp_portal_new ();
+  g_assert_nonnull (portal);
+  g_assert_true (XDP_IS_PORTAL (portal));
+  g_object_unref (portal);
+
+  return 0;
+}
+EOF
+
+# Deliberately word-splitting, that's how pkg-config works:
+# shellcheck disable=SC2046
+"${CROSS_COMPILE}gcc" -o test test.c $("${CROSS_COMPILE}pkg-config" --cflags --libs libportal)
+test -x ./test
+dbus-run-session -- ./test

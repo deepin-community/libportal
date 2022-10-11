@@ -1,0 +1,3 @@
+usr/include/libportal
+usr/lib/*/libportal.so
+usr/lib/*/pkgconfig/libportal.pc

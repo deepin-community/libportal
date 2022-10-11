@@ -1,0 +1,55 @@
+libportal (0.4-2) unstable; urgency=medium
+
+  * d/p/portal-helpers-Unref-correct-object.patch:
+    Add patch from upstream to fix a potential crash or memory leak
+  * Standards-Version: 4.6.0 (no changes required)
+  * Release to unstable.
+    An upstream maintainer confirmed that while this library is not
+    completely API-stable, the SONAME will be incremented when
+    incompatible changes are made in future.
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 21 Sep 2021 17:29:00 +0100
+
+libportal (0.4-1) experimental; urgency=medium
+
+  * New upstream release
+  * Standards-Version: 4.5.1 (no changes required)
+  * Use debhelper compat level 13
+    - Stop setting HOME etc., now done by default
+    - Stop forcing dh_missing --fail-missing, now the default
+  * libportal-doc: Add Lintian override for #970275
+  * libportal-tests: Override a Lintian false-positive
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 09 Apr 2021 10:43:02 +0100
+
+libportal (0.3+git20200925-1) experimental; urgency=medium
+
+  * New upstream snapshot
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 01 Oct 2020 11:39:16 +0100
+
+libportal (0.3+git20200327-1) experimental; urgency=medium
+
+  * New upstream snapshot
+    - Drop patches, applied upstream
+  * Explicitly build-depend on a suitable GLib version
+  * Standards-Version: 4.5.0 (no changes required)
+
+ -- Simon McVittie <smcv@debian.org>  Mon, 30 Mar 2020 18:07:23 +0100
+
+libportal (0.3-1) experimental; urgency=medium
+
+  * New upstream development release
+    - Bump minimum version for all symbols to 0.3 due to API/ABI breaks
+  * d/p/Use-a-GNOME-background-to-test-setting-wallpaper.patch:
+    Mark as forwarded upstream
+  * d/p/Convert-some-debug-printfs-into-g_debug.patch:
+    Use g_debug() for debug logging
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 20 Dec 2019 18:23:43 +0000
+
+libportal (0.2-1) experimental; urgency=medium
+
+  * Initial package (Closes: #946605)
+
+ -- Simon McVittie <smcv@debian.org>  Mon, 16 Dec 2019 09:27:47 +0000
