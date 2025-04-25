@@ -1,36 +1,26 @@
 /*
  * Copyright (C) 2019, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
 
 #include "updates.h"
 #include "portal-private.h"
-#include "utils-private.h"
-
-/**
- * SECTION:updates
- * @title: Updates
- * @short_description: installing software updates
- *
- * These functions let applications be informed about available
- * software updates (for themselves) and install those updates.
- *
- * The underlying portal is org.freedesktop.portal.Flatpak.
- */
 
 #define UPDATE_MONITOR_INTERFACE "org.freedesktop.portal.Flatpak.UpdateMonitor"
 #define UPDATE_MONITOR_PATH_PREFIX "/org/freedesktop/portal/Flatpak/update_monitor/"
@@ -178,7 +168,6 @@ create_monitor (CreateMonitorCall *call)
 {
   GVariantBuilder options;
   g_autofree char *token = NULL;
-  g_autofree char *session_token = NULL;
   GCancellable *cancellable;
 
   if (call->portal->update_monitor_handle)
@@ -212,18 +201,18 @@ create_monitor (CreateMonitorCall *call)
 
 /**
  * xdp_portal_update_monitor_start:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @flags: options for this cal..
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Makes XdpPortal start monitoring for available software updates.
+ * Makes `XdpPortal` start monitoring for available software updates.
  *
- * When a new update is available, the #XdpPortal::update-available.
+ * When a new update is available, the [signal@Portal::update-available].
  * signal is emitted.
  *
- * Use xdp_portal_update_monitor_stop() to stop monitoring.
+ * Use [method@Portal.update_monitor_stop] to stop monitoring.
  */
 void
 xdp_portal_update_monitor_start (XdpPortal *portal,
@@ -247,14 +236,15 @@ xdp_portal_update_monitor_start (XdpPortal *portal,
 
 /**
  * xdp_portal_update_monitor_start_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes an update-monitor request, and returns
- * the result in the form of boolean.
+ * Finishes an update-monitor request.
  *
- * Returns: %TRUE if the request succeeded
+ * Returns the result in the form of boolean.
+ *
+ * Returns: `TRUE` if the request succeeded
  */
 gboolean
 xdp_portal_update_monitor_start_finish (XdpPortal *portal,
@@ -270,10 +260,10 @@ xdp_portal_update_monitor_start_finish (XdpPortal *portal,
 
 /**
  * xdp_portal_update_monitor_stop:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  *
  * Stops update monitoring that was started with
- * xdp_portal_update_monitor_start().
+ * [method@Portal.update_monitor_start].
  */
 void
 xdp_portal_update_monitor_stop (XdpPortal *portal)
@@ -318,7 +308,7 @@ install_update_call_free (InstallUpdateCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
   g_free (call->parent_handle);
 
@@ -393,17 +383,19 @@ install_update (InstallUpdateCall *call)
 
 /**
  * xdp_portal_update_install:
- * @portal: a #XdpPortal
- * @parent: a #XdpParent
+ * @portal: a [class@Portal]
+ * @parent: a [struct@Parent]
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Installs an available software update. This should be
- * called in response to a #XdpPortal::update-available signal.
+ * Installs an available software update.
  *
- * During the update installation, the #XdpPortal::update-progress
+ * This should be called in response to a [signal@Portal::update-available]
+ * signal.
+ *
+ * During the update installation, the [signal@Portal::update-progress]
  * signal will be emitted to provide progress information.
  */
 void
@@ -422,7 +414,7 @@ xdp_portal_update_install (XdpPortal *portal,
   call = g_new0 (InstallUpdateCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->task = g_task_new (portal, cancellable, callback, data);
@@ -433,19 +425,20 @@ xdp_portal_update_install (XdpPortal *portal,
 
 /**
  * xdp_portal_update_install_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes an update-installation request, and returns
- * the result in the form of boolean.
+ * Finishes an update-installation request.
+ *
+ * Returns the result in the form of boolean.
  *
  * Note that the update may not be completely installed
  * by the time this function is called. You need to
- * listen to the #XdpPortal::update-progress signal
+ * listen to the [signal@Portal::update-progress] signal
  * to learn when the installation is complete.
  *
- * Returns: %TRUE if the update is being installed
+ * Returns: `TRUE` if the update is being installed
  */
 gboolean
 xdp_portal_update_install_finish (XdpPortal *portal,

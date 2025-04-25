@@ -1,18 +1,20 @@
 /*
  * Copyright (C) 2019, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
@@ -23,30 +25,19 @@
 #include "portal-private.h"
 
 /**
- * SECTION:camera
- * @title: Camera
- * @short_description: access camera devices
- *
- * These functions lets applications access cameras and
- * open pipewire remotes for them.
- *
- * The underlying portal is org.freedesktop.portal.Camera.
- */
-
-/**
  * xdp_portal_is_camera_present:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  *
  * Returns whether any camera are present.
  *
- * Returns: %TRUE if the system has cameras
+ * Returns: `TRUE` if the system has cameras
  */
 gboolean
 xdp_portal_is_camera_present (XdpPortal *portal)
 {
   g_autoptr(GError) error = NULL;
   g_autoptr(GVariant) ret = NULL;
-  gboolean result;
+  g_autoptr(GVariant) prop = NULL;
 
   g_return_val_if_fail (XDP_IS_PORTAL (portal), FALSE);
 
@@ -56,7 +47,7 @@ xdp_portal_is_camera_present (XdpPortal *portal)
                                      "org.freedesktop.DBus.Properties",
                                      "Get",
                                      g_variant_new ("(ss)", "org.freedesktop.portal.Camera", "IsCameraPresent"),
-                                     G_VARIANT_TYPE_BOOLEAN,
+                                     G_VARIANT_TYPE ("(v)"),
                                      G_DBUS_CALL_FLAGS_NONE,
                                      -1,
                                      NULL,
@@ -67,9 +58,9 @@ xdp_portal_is_camera_present (XdpPortal *portal)
       return FALSE;
     }
 
-  g_variant_get (ret, "(b)", &result);
+  g_variant_get (ret, "(v)", &prop);
 
-  return result;
+  return g_variant_get_boolean (prop);
 }
 
 typedef struct {
@@ -78,7 +69,7 @@ typedef struct {
   GCancellable *cancellable;
   GTask *task;
   char *request_path;
-  guint cancelled_id;
+  gulong cancelled_id;
 } AccessCameraCall;
 
 static void
@@ -87,8 +78,7 @@ access_camera_call_free (AccessCameraCall *call)
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (call->cancellable, call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, call->cancellable);
 
   g_free (call->request_path);
 
@@ -113,11 +103,7 @@ response_received (GDBusConnection *bus,
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
 
-  if (call->cancelled_id)
-    {
-      g_signal_handler_disconnect (call->cancellable, call->cancelled_id);
-      call->cancelled_id = 0;
-    }
+  g_clear_signal_handler (&call->cancelled_id, call->cancellable);
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -137,7 +123,7 @@ cancelled_cb (GCancellable *cancellable,
 {
   AccessCameraCall *call = data;
 
-g_debug ("Calling Close");
+  g_debug ("Calling Close");
   g_dbus_connection_call (call->portal->bus,
                           PORTAL_BUS_NAME,
                           call->request_path,
@@ -166,6 +152,7 @@ call_returned (GObject *object,
   ret = g_dbus_connection_call_finish (G_DBUS_CONNECTION (object), result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, call->cancellable);
       g_task_return_error (call->task, error);
       access_camera_call_free (call);
     }
@@ -196,7 +183,7 @@ access_camera (AccessCameraCall *call)
   g_variant_builder_init (&options, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_add (&options, "{sv}", "handle_token", g_variant_new_string (token));
 
-g_debug ("Calling AccessCamera");
+  g_debug ("Calling AccessCamera");
   g_dbus_connection_call (call->portal->bus,
                           PORTAL_BUS_NAME,
                           PORTAL_OBJECT_PATH,
@@ -213,17 +200,17 @@ g_debug ("Calling AccessCamera");
 
 /**
  * xdp_portal_access_camera:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Request access to a camera.
  *
  * When the request is done, @callback will be called.
- * You can then call xdp_portal_access_camera_finished()
+ * You can then call [method@Portal.access_camera_finish]
  * to get the results.
  */
 void
@@ -251,18 +238,19 @@ xdp_portal_access_camera (XdpPortal           *portal,
 
 /**
  * xdp_portal_access_camera_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes a camera acess request, and returns
- * the result as a boolean.
+ * Finishes a camera acess request.
+ *
+ * Returns the result as a boolean.
  *
  * If the access was granted, you can then call
- * xdp_portal_open_pipewire_remote_for_camera()
+ * [method@Portal.open_pipewire_remote_for_camera]
  * to obtain a pipewire remote.
  *
- * Returns: %TRUE if access to a camera was granted
+ * Returns: `TRUE` if access to a camera was granted
  */
 gboolean
 xdp_portal_access_camera_finish (XdpPortal     *portal,
@@ -278,12 +266,14 @@ xdp_portal_access_camera_finish (XdpPortal     *portal,
 
 /**
  * xdp_portal_open_pipewire_remote_for_camera:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  *
  * Opens a file descriptor to the pipewire remote where the camera
- * nodes are available. The file descriptor should be used to create
- * a pw_remote object, by using pw_remote_connect_fd(). Only the
- * camera nodes will be available from this pipewire node.
+ * nodes are available.
+ *
+ * The file descriptor should be used to create a pw_core object, by using
+ * pw_context_connect_fd(). Only the camera nodes will be available from this
+ * pipewire node.
  *
  * Returns: the file descriptor
  */

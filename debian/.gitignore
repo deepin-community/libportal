@@ -1,0 +1,6 @@
+/*.debhelper
+/*.substvars
+/libportal-dev
+/libportal-doc
+/libportal-tests
+/libportal0

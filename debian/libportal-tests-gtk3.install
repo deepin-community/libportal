@@ -1,0 +1,4 @@
+usr/bin/portal-test-gtk3
+usr/share/applications/org.gnome.PortalTest.Gtk3.desktop
+usr/share/dbus-1/services/org.gnome.PortalTest.Gtk3.service
+usr/share/org.gnome.PortalTest.Gtk3

@@ -1,0 +1,5 @@
+usr/bin/org.gnome.PortalTest.Gtk4
+usr/share/applications/org.gnome.PortalTest.Gtk4.desktop
+usr/share/dbus-1/services/org.gnome.PortalTest.Gtk4.service
+usr/share/org.gnome.PortalTest.Gtk4
+usr/share/portal-test-gtk4

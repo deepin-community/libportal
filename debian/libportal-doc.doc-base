@@ -1,0 +1,7 @@
+Document: libportal-doc
+Title: libportal API Reference
+Section: Programming/C
+
+Format: HTML
+Index: /usr/share/doc/libportal-doc/html/libportal-1/index.html
+Files: /usr/share/doc/libportal-doc/html/libportal-1/*

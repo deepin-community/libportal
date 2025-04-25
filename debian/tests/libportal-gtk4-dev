@@ -1,0 +1,67 @@
+#!/bin/sh
+# Copyright 2022 Simon McVittie
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+set -e
+exec 2>&1
+set -u
+set -x
+
+cd "$AUTOPKGTEST_TMP"
+HOME="$(pwd)"
+export GTK_A11Y=none
+export HOME
+export NO_AT_BRIDGE=1
+
+if [ -n "${DEB_HOST_GNU_TYPE:-}" ]; then
+    CROSS_COMPILE="$DEB_HOST_GNU_TYPE-"
+else
+    CROSS_COMPILE=
+fi
+
+cat > test.c <<'EOF'
+#include <libportal-gtk4/portal-gtk4.h>
+
+static gboolean go = TRUE;
+
+static gboolean
+do_quit (gpointer user_data)
+{
+  go = FALSE;
+  return G_SOURCE_REMOVE;
+}
+
+int main (int argc, char *argv[])
+{
+  GtkWidget *dialog = NULL;
+  XdpParent *parent = NULL;
+
+  gtk_init ();
+  dialog = g_object_ref_sink (gtk_about_dialog_new ());
+  g_timeout_add_seconds (1, do_quit, NULL);
+  gtk_window_present (GTK_WINDOW (dialog));
+  parent = xdp_parent_new_gtk (GTK_WINDOW (dialog));
+  g_assert_nonnull (parent);
+
+  while (go)
+    g_main_context_iteration (NULL, TRUE);
+
+  xdp_parent_free (parent);
+  g_object_unref (dialog);
+
+  return 0;
+}
+EOF
+
+# Deliberately word-splitting, that's how pkg-config works:
+# shellcheck disable=SC2046
+"${CROSS_COMPILE}gcc" -g -o test test.c $("${CROSS_COMPILE}pkgconf" --cflags --libs libportal-gtk4 gtk4)
+test -x ./test
+set -- ./test
+
+if [ -z "${TEST_INTERACTIVE-}" ]; then
+    export GDK_BACKEND=x11
+    set -- xvfb-run -a dbus-run-session -- "$@"
+fi
+
+"$@"

@@ -1,0 +1,6 @@
+usr/bin/portal-test-qt6
+usr/include/libportal-qt6
+usr/lib/*/libportal-qt6.so
+usr/lib/*/libportal-qt6.so.1
+usr/lib/*/libportal-qt6.so.1.*
+usr/lib/*/pkgconfig/libportal-qt6.pc

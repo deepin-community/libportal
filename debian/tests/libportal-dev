@@ -36,6 +36,6 @@ EOF
 
 # Deliberately word-splitting, that's how pkg-config works:
 # shellcheck disable=SC2046
-"${CROSS_COMPILE}gcc" -o test test.c $("${CROSS_COMPILE}pkg-config" --cflags --libs libportal)
+"${CROSS_COMPILE}gcc" -o test test.c $("${CROSS_COMPILE}pkgconf" --cflags --libs libportal)
 test -x ./test
 dbus-run-session -- ./test

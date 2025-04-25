@@ -1,18 +1,20 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
@@ -21,19 +23,19 @@
 #include "portal-private.h"
 
 /**
- * SECTION:session
- * @title: XdpSession
- * @short_description: a representation of long-lived screencast portal interactions
+ * XdpSession
+ *
+ * A representation of long-lived screencast portal interactions.
  *
  * The XdpSession object is used to represent portal interactions with the
  * screencast or remote desktop portals that extend over multiple portal calls.
  *
  * To find out what kind of session an XdpSession object represents and whether
- * it is still active, you can use xdp_session_get_session_type() and
- * xdp_session_get_session_state().
+ * it is still active, you can use [method@Session.get_session_type] and
+ * [method@Session.get_session_state].
  *
  * All sessions start in an initial state. They can be made active by calling
- * xdp_session_start(), and ended by calling xdp_session_close().
+ * [method@Session.start], and ended by calling [method@Session.close].
  */
 enum {
   CLOSED,
@@ -53,8 +55,12 @@ xdp_session_finalize (GObject *object)
     g_dbus_connection_signal_unsubscribe (session->portal->bus, session->signal_id);
 
   g_clear_object (&session->portal);
-  g_free (session->id);
+  g_clear_pointer (&session->restore_token, g_free);
+  g_clear_pointer (&session->id, g_free);
   g_clear_pointer (&session->streams, g_variant_unref);
+  if (session->input_capture_session != NULL)
+    g_critical ("XdpSession destroyed before XdpInputCaptureSesssion, you lost count of your session refs");
+  session->input_capture_session = NULL;
 
   G_OBJECT_CLASS (xdp_session_parent_class)->finalize (object);
 }
@@ -69,7 +75,7 @@ xdp_session_class_init (XdpSessionClass *klass)
   /**
    * XdpSession::closed:
    *
-   * The ::closed signal is emitted when a session is closed externally.
+   * Emitted when a session is closed externally.
    */
   signals[CLOSED] =
     g_signal_new ("closed",
@@ -112,6 +118,7 @@ _xdp_session_new (XdpPortal *portal,
   session->id = g_strdup (id);
   session->type = type;
   session->state = XDP_SESSION_INITIAL;
+  session->input_capture_session = NULL;
 
   session->signal_id = g_dbus_connection_signal_subscribe (portal->bus,
                                                            PORTAL_BUS_NAME,
@@ -126,13 +133,23 @@ _xdp_session_new (XdpPortal *portal,
   return session;
 }
 
+void
+_xdp_session_close (XdpSession *session)
+{
+  if (session->is_closed)
+    return;
+
+  session->is_closed = TRUE;
+  g_signal_emit_by_name (session, "closed");
+}
+
 /**
  * xdp_session_get_session_type:
- * @session: an #XdpSession
+ * @session: an [class@Session]
  *
  * Obtains information about the type of session that is represented
  * by @session.
- * 
+ *
  * Returns: the type of @session
  */
 XdpSessionType
@@ -144,109 +161,24 @@ xdp_session_get_session_type (XdpSession *session)
 }
 
 /**
- * xdp_session_get_session_state:
- * @session: an #XdpSession
+ * xdp_session_close:
+ * @session: an active [class@Session]
  *
- * Obtains information about the state of the session that is represented
- * by @session.
- * 
- * Returns: the state of @session
+ * Closes the session.
  */
-XdpSessionState
-xdp_session_get_session_state (XdpSession *session)
-{
-  g_return_val_if_fail (XDP_IS_SESSION (session), XDP_SESSION_CLOSED);
-
-  return session->state;
-}
-
 void
-_xdp_session_set_session_state (XdpSession *session,
-                                XdpSessionState state)
+xdp_session_close (XdpSession *session)
 {
-  session->state = state;
+  g_return_if_fail (XDP_IS_SESSION (session));
 
-  if (state == XDP_SESSION_INITIAL && session->state != XDP_SESSION_INITIAL)
-    {
-      g_warning ("Can't move a session back to initial state");
-      return;
-    }
-  if (session->state == XDP_SESSION_CLOSED && state != XDP_SESSION_CLOSED)
-    {
-      g_warning ("Can't move a session back from closed state");
-      return;
-    }
+  g_dbus_connection_call (session->portal->bus,
+                          PORTAL_BUS_NAME,
+                          session->id,
+                          SESSION_INTERFACE,
+                          "Close",
+                          NULL,
+                          NULL, 0, -1, NULL, NULL, NULL);
 
-  if (state == XDP_SESSION_CLOSED)
-    g_signal_emit (session, signals[CLOSED], 0);
-}
-
-/**
- * xdp_session_get_devices:
- * @session: a #XdpSession
- *
- * Obtains the devices that the user selected.
- *
- * Unless the session is active, this function returns %XDP_DEVICE_NONE.
- *
- * Returns: the selected devices
- */
-XdpDeviceType
-xdp_session_get_devices (XdpSession *session)
-{
-  g_return_val_if_fail (XDP_IS_SESSION (session), XDP_DEVICE_NONE);
-
-  if (session->state != XDP_SESSION_ACTIVE)
-    return XDP_DEVICE_NONE;
-
-  return session->devices;
-}
-
-void
-_xdp_session_set_devices (XdpSession *session,
-                          XdpDeviceType devices)
-{
-  session->devices = devices;
-}
-
-/**
- * xdp_session_get_streams:
- * @session: a #XdpSession
- *
- * Obtains the streams that the user selected. The information inthe
- * returned #GVariant has the format `a(ua{sv})`. Each item in the array
- * is describing a stream. The first member is the pipewire node ID, the
- * second is a dictionary of stream properties, including:
- * - position, `(ii)`: a tuple consisting of the position (x, y) in the compositor
- *     coordinate space. Note that the position may not be equivalent to a
- *     position in a pixel coordinate space. Only available for monitor streams.
- * - size, `(ii)`: a tuple consisting of (width, height). The size represents the size
- *     of the stream as it is displayed in the compositor coordinate space.
- *     Note that this size may not be equivalent to a size in a pixel coordinate
- *     space. The size may differ from the size of the stream.
- *
- * Unless the session is active, this function returns %NULL.
- *
- * Returns: the selected streams
- */
-GVariant *
-xdp_session_get_streams (XdpSession *session)
-{
-  g_return_val_if_fail (XDP_IS_SESSION (session), NULL);
-
-  if (session->state != XDP_SESSION_ACTIVE)
-    return NULL;
-
-  return session->streams;
-}
-
-void
-_xdp_session_set_streams (XdpSession *session,
-                          GVariant *streams)
-{
-  if (session->streams)
-    g_variant_unref (session->streams);
-  session->streams = streams;
-  if (session->streams)
-    g_variant_ref (session->streams);
+  _xdp_session_set_session_state (session, XDP_SESSION_CLOSED);
+  _xdp_session_close (session);
 }

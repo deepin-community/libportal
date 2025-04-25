@@ -1,18 +1,20 @@
 /*
  * Copyright (C) 2019, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
@@ -29,17 +31,6 @@
 #include <gio/gunixfdlist.h>
 
 #include "portal-private.h"
-#include "utils-private.h"
-
-/**
- * SECTION:trash
- * @title: Trash
- * @short_description: send files to the trash
- *
- * This function lets applications send a file to the trash can.
- *
- * The underlying portal is org.freedesktop.portal.Trash.
- */
 
 typedef struct {
   XdpPortal *portal;
@@ -130,11 +121,11 @@ trash_file (TrashCall *call)
 
 /**
  * xdp_portal_trash_file:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @path: the path for a local file
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Sends the file at @path to the trash can.
  */
@@ -162,14 +153,15 @@ xdp_portal_trash_file (XdpPortal           *portal,
 
 /**
  * xdp_portal_trash_file_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the trash-file request, and returns
- * the result in the form of a boolean.
+ * Finishes the trash-file request.
  *
- * Returns: %TRUE if the call succeeded
+ * Returns the result in the form of a boolean.
+ *
+ * Returns: `TRUE` if the call succeeded
  */
 gboolean
 xdp_portal_trash_file_finish (XdpPortal *portal,

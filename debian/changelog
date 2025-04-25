@@ -1,3 +1,226 @@
+libportal (0.9.1-1) unstable; urgency=medium
+
+  * New upstream release
+    - Fix memory management in input capture code (Closes: #1082570)
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 12 Feb 2025 10:58:37 +0000
+
+libportal (0.9.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * d/libportal1.symbols: Update
+  * d/control: Bump GLib build-dependency to 2.72 as per meson.build
+  * d/control: Require meson 0.63.0 if Qt 6 support is enabled, as per
+    meson.build
+  * d/rules: Run all tests
+  * d/salsa-ci.yml: Use recommended recipe
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 22 Dec 2024 13:01:23 +0000
+
+libportal (0.8.1-2) unstable; urgency=medium
+
+  * d/rules: Explicitly set a screen size for Xvfb.
+    For whatever reason, this avoids a crash in libunwind seen on armhf.
+    (Mitigates: #1082659) (Closes: #1082588)
+  * d/rules: Let diagnostic messages from Xvfb go to stderr.
+    This would have made it easier to see that Xvfb was segfaulting
+    on armhf.
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 24 Sep 2024 10:12:10 +0100
+
+libportal (0.8.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * Drop all patches, applied upstream
+  * d/p/tests-Divide-tests-into-suites.patch, d/rules:
+    Ignore result of unreliable pytest-based tests (Mitigates: #1082570)
+  * d/*.README.Debian: Update Flatpak runtime versions again
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 22 Sep 2024 13:39:49 +0100
+
+libportal (0.8.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * d/copyright: Update
+  * Update README.Debian for GTK tests.
+    They now use a newer runtime.
+  * d/libportal-tests-qt5.install: Update for new versioned name
+  * Drop all patches, applied upstream
+  * Build Qt 6 binding, but do not install it yet.
+    Installing it will require a trip through the NEW queue.
+  * d/p/tests-Make-pytest-more-verbose.patch,
+    d/p/tests-Increase-timeout-for-pytest.patch,
+    d/p/remote-Shuffle-some-code-around.patch,
+    d/p/remote-Fetch-ScreenCast-version-when-using-Remote-Desktop.patch:
+  * Add patches from upstream to fix a test failure and make tests
+    more verbose
+  * Update symbols files with new ABI
+  * Standards-Version: 4.7.0 (no changes required)
+  * Use pkgconf in preference to pkg-config
+  * d/tests/libportal-gtk4-dev: Fix some warnings
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 03 Sep 2024 11:58:12 +0100
+
+libportal (0.7.1-5) unstable; urgency=medium
+
+  * Generate a vapigen wrapper that searches the appropriate ${libdir}.
+    Ideally vapigen should have a solution to this, but at the moment it
+    can't find GLib-2.0.gir without the compatibility symlink provided
+    by libgirepository1.0-dev (#1060904).
+    Generating our own wrapper like this also allows for
+    cross-compilation, by using the build-architecture vapigen but
+    telling it to look for GIR XML in the host architecture's library
+    directory. This acts as a prototype of being able to generate Vala
+    API descriptions during cross-compilation more generically.
+  * d/control: Stop depending on libgirepository1.0-dev explicitly.
+    Now that we can find GIR XML in /usr/lib/*/gir-1.0, we don't need
+    the libgirepository1.0-dev metapackage, which is not and cannot
+    be Multi-Arch: same (see #801672). Instead, we can take smaller
+    parts of it: the gobject-introspection tools, and the GIR XML in
+    gir1.2-glib-2.0-dev (which we already depended on).
+    Until all of our build-dependencies add dependencies for the
+    GIR XML that they depend on, we also need to build-depend on
+    gir1.2-freedesktop-dev.
+  * d/control, d/rules: Use cross g-ir-scanner to support cross-compiling.
+    Ideally this would be automatic (#1060838), but it isn't. Accept an
+    older version of gobject-introspection when not cross-compiling,
+    to facilitate backports.
+  * d/control: Build-Depend on Gio-2.0 by its systematic name
+    gir1.2-gio-2.0-dev, a virtual package provided by gir1.2-glib-2.0-dev
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 17 Jan 2024 18:02:05 +0000
+
+libportal (0.7.1-4) unstable; urgency=medium
+
+  * d/p/pyportaltest-Only-create-one-session-bus-per-DBusTestCase.patch:
+    Add patch to fix test failure with dbusmock >= 0.30.0 (Closes: #1058245)
+  * Mark both patches as applied upstream
+  * Don't fully rely on ${gir:Depends} for GIR XML's dependencies.
+    A bug in current dh_girepository results in dependencies from GIR XML
+    to a typelib not being generated as intended. Work around this by
+    going back to hard-coding those dependencies.
+  * d/control: Explicitly build-depend on gir1.2-gtk-3.0-dev
+    (Helps: #1030223)
+  * Revert "libportal*-dev: Install Xdp*.gir in multiarch library
+    directories".
+    We'll want vapigen to search these directories eventually, but there's
+    a risk of breaking the build for packages like gnome-builder and
+    gnome-contacts if we force this too soon.
+  * Further steps towards being cross-compilable:
+    - d/control: Explicitly build-depend on gir1.2-glib-2.0-dev
+    - d/rules: Use d/meson/no-gjs.ini as a cross-file if cross-compiling
+    - d/p/portal-test-gtk3-Don-t-provide-a-run-target-if-we-cannot-.patch:
+      Add patch from upstream git to make portal-test build system
+      cross-friendly
+  * Upload to unstable
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 27 Dec 2023 16:05:18 +0000
+
+libportal (0.7.1-3) experimental; urgency=medium
+
+  * d/control: Use ${gir:Depends}, ${gir:Provides} for GIR XML and typelib
+    dependencies
+  * libportal*-dev: Install Xdp*.gir in multiarch library directories.
+    This is unnecessary for this specific package (the GIR XML happens to
+    be the same for all architectures), but it can be used as a test-case
+    for whether parsers like the ones in gi-docgen and vala successfully
+    find GIR XML in this location. (Helps: #1029957)
+  * d/control: Explicitly build-depend on gir1.2-gtk-4.0-dev.
+    This is a step towards being able to cross-compile with the
+    GObject-Introspection parts omitted. (Helps: #1030223)
+
+ -- Simon McVittie <smcv@debian.org>  Sat, 11 Nov 2023 16:16:53 +0000
+
+libportal (0.7.1-2) unstable; urgency=medium
+
+  * d/rules: Allow longer for build-time tests to run.
+    I've used a 3x multiple here, rather than the 2x multiple suggested
+    on #1051649, to provide more margin of error on slower buildds.
+    Thanks to Aurelien Jarno (Closes: #1051649, maybe also #1051702)
+  * d/rules: Don't let Xvfb reset during testing.
+    Workaround for #981201.
+
+ -- Simon McVittie <smcv@debian.org>  Fri, 15 Sep 2023 09:47:48 +0100
+
+libportal (0.7.1-1) unstable; urgency=medium
+
+  * New upstream bugfix release
+    - Fix regression calling `g_object_new()` for an XdpPortal,
+      which broke the GTK 4 test app in libportal-tests-gtk4
+  * Release to unstable
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 10 Sep 2023 14:14:13 +0100
+
+libportal (0.7-1) experimental; urgency=medium
+
+  * New upstream release
+  * d/control: Add build-dependencies for new Python/dbusmock-based tests
+  * d/rules: Update build options for choice of backends
+  * d/control, d/rules: Conditionalize all GUI libraries
+  * d/gbp.conf: Change packaging branch to debian/latest
+  * Drop all patches, applied upstream
+  * d/libportal1.symbols: Update
+  * Standards-Version: 4.6.2 (no changes required)
+  * d/libportal-doc.doc-base: Register API reference with doc-base
+  * Remove an unused Lintian override
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 07 Sep 2023 17:18:44 +0100
+
+libportal (0.6-4) unstable; urgency=medium
+
+  * d/watch: Update for Github website changes
+  * d/patches: Add various bug fixes from upstream git
+
+ -- Simon McVittie <smcv@debian.org>  Sat, 12 Nov 2022 17:58:57 +0000
+
+libportal (0.6-3) unstable; urgency=medium
+
+  * Only build-depend on gjs for Architecture: all.
+    This avoids becoming unbuildable on armel when gjs moves to mozjs102.
+    We only need gjs if we are going to build libportal-tests-gtk4, which
+    is Architecture: all anyway.
+  * Standards-Version: 4.6.1 (no changes required)
+  * Update Lintian overrides
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 31 Aug 2022 11:42:41 +0100
+
+libportal (0.6-2) unstable; urgency=medium
+
+  * Mark 2 Qt symbols as optional not seen during the Ubuntu 22.04 build
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 13 Apr 2022 19:10:53 -0400
+
+libportal (0.6-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream release
+  * Use xvfb to run new build test
+  * Add new symbols
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 13 Apr 2022 13:24:07 -0400
+
+libportal (0.5-2) unstable; urgency=medium
+
+  * Upload to unstable (starts transition: #1003085)
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 05 Jan 2022 10:31:42 +0000
+
+libportal (0.5-1) experimental; urgency=medium
+
+  * New upstream release
+    - Update d/copyright for new licensing
+    - Build documentation with gi-docgen instead of gtk-doc
+    - Rename libportal0 to libportal1 for upstream SONAME bump
+    - Add binary packages for GTK 3, GTK 4, Qt 5 integration, which is
+      now in separate shared libraries instead of being inlined in
+      header files
+    - Add binary packages for GObject-Introspection bindings
+    - Rename libportal-tests to libportal-tests-gtk3
+    - Add libportal-tests-gtk4 which uses gjs and GTK 4
+    - Add libportal-tests-qt5 which uses Qt
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 22 Dec 2021 21:05:32 +0000
+
 libportal (0.4-2) unstable; urgency=medium
 
   * d/p/portal-helpers-Unref-correct-object.patch:

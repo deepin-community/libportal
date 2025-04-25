@@ -1,0 +1,55 @@
+#!/bin/sh
+# Copyright 2022 Simon McVittie
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+set -e
+exec 2>&1
+set -u
+set -x
+
+cd "$AUTOPKGTEST_TMP"
+HOME="$(pwd)"
+export HOME
+export NO_AT_BRIDGE=1
+
+if [ -n "${DEB_HOST_GNU_TYPE:-}" ]; then
+    CROSS_COMPILE="$DEB_HOST_GNU_TYPE-"
+else
+    CROSS_COMPILE=
+fi
+
+cat > test.cpp <<'EOF'
+#include <QApplication>
+#include <QPushButton>
+#include <QTimer>
+#include <libportal-qt5/portal-qt5.h>
+
+int main (int argc, char *argv[])
+{
+  XdpParent *parent;
+  QApplication app(argc, argv);
+  QPushButton button("Hello, world!");
+  button.show();
+  parent = xdp_parent_new_qt(button.window()->windowHandle());
+  Q_ASSERT(parent);
+  QTimer::singleShot(1000, &app, SLOT(quit()));
+  return app.exec();
+}
+EOF
+
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=870383
+CXXFLAGS=-fPIC
+# <gio/gdbusintrospection.h> includes a struct member named "signals"
+# which conflicts with Qt's use
+CXXFLAGS="$CXXFLAGS -DQT_NO_SIGNALS_SLOTS_KEYWORDS"
+# Deliberately word-splitting, that's how pkg-config works:
+# shellcheck disable=SC2046
+"${CROSS_COMPILE}g++" $CXXFLAGS -o test test.cpp $("${CROSS_COMPILE}pkgconf" --cflags --libs libportal-qt5 Qt5Widgets)
+test -x ./test
+set -- ./test
+
+if [ -z "${TEST_INTERACTIVE-}" ]; then
+    set -- xvfb-run -a dbus-run-session -- "$@"
+fi
+
+"$@"

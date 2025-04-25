@@ -1,0 +1,3 @@
+usr/include/libportal-qt5
+usr/lib/*/libportal-qt5.so
+usr/lib/*/pkgconfig/libportal-qt5.pc
