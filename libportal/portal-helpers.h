@@ -1,74 +1,60 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
+ * Copyright (C) 2024 GNOME Foundation, Inc.
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * Authors:
+ *    Matthias Clasen
+ *    Hubert Figuière <hub@figuiere.net>
  */
 
 #pragma once
 
 #include <gio/gio.h>
 
+#include <libportal/types.h>
+
 G_BEGIN_DECLS
 
-#define XDP_TYPE_PORTAL (xdp_portal_get_type ())
-
-G_DECLARE_FINAL_TYPE (XdpPortal, xdp_portal, XDP, PORTAL, GObject)
-
-#ifndef __GTK_DOC_IGNORE__
 #ifndef XDP_PUBLIC
 #define XDP_PUBLIC extern
 #endif
-#endif /* __GTK_DOC_IGNORE__ */
+
+#define XDP_TYPE_PORTAL (xdp_portal_get_type ())
 
 XDP_PUBLIC
-GType      xdp_portal_get_type               (void) G_GNUC_CONST;
+G_DECLARE_FINAL_TYPE (XdpPortal, xdp_portal, XDP, PORTAL, GObject)
 
 XDP_PUBLIC
-XdpPortal *xdp_portal_new                    (void);
+XdpPortal *xdp_portal_new                   (void);
 
-/**
- * XdpParent:
- *
- * A struct that provides information about parent windows.
- * The members of this struct are private to libportal and should
- * not be accessed by applications.
- */
-typedef struct _XdpParent XdpParent;
+XDP_PUBLIC
+XdpPortal *xdp_portal_initable_new          (GError **error);
 
-typedef void     (* XdpParentExported) (XdpParent         *parent,
-                                        const char        *handle,
-                                        gpointer           data);
-typedef gboolean (* XdpParentExport)   (XdpParent         *parent,
-                                        XdpParentExported  callback,
-                                        gpointer           data);
-typedef void     (* XdpParentUnexport) (XdpParent         *parent);
+XDP_PUBLIC
+gboolean   xdp_portal_running_under_flatpak (void);
 
-struct _XdpParent {
-  /*< private >*/
-  XdpParentExport parent_export;
-  XdpParentUnexport parent_unexport;
-  GObject *object;
-  XdpParentExported callback;
-  gpointer data;
-};
+XDP_PUBLIC
+gboolean   xdp_portal_running_under_snap    (GError **error);
 
-static inline void xdp_parent_free (XdpParent *parent);
+XDP_PUBLIC
+gboolean   xdp_portal_running_under_sandbox (void);
 
-static inline void xdp_parent_free (XdpParent *parent)
-{
-  g_clear_object (&parent->data);
-  g_free (parent);
-}
+XDP_PUBLIC
+XdpSettings *xdp_portal_get_settings        (XdpPortal *portal);
 
 G_END_DECLS

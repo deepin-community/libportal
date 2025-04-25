@@ -1,0 +1,5 @@
+usr/include/libportal-gtk3
+usr/lib/*/libportal-gtk3.so
+usr/lib/*/pkgconfig/libportal-gtk3.pc
+usr/share/gir-*/XdpGtk3-*.gir
+usr/share/vala/vapi/libportal-gtk3.*

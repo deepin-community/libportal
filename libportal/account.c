@@ -1,36 +1,26 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
 
 #include "account.h"
 #include "portal-private.h"
-#include "utils-private.h"
-
-/**
- * SECTION:account
- * @title: Accounts
- * @short_description: basic user information
- *
- * These functions let applications query basic information about
- * the user, such as user ID, name and avatar picture.
- *
- * The underlying portal is org.freedesktop.portal.Account.
- */
 
 typedef struct {
   XdpPortal *portal;
@@ -40,7 +30,7 @@ typedef struct {
   GTask *task;
   guint signal_id;
   char *request_path;
-  guint cancelled_id;
+  gulong cancelled_id;
 } AccountCall;
 
 static void
@@ -50,15 +40,14 @@ account_call_free (AccountCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
   g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_free (call->request_path);
 
@@ -83,11 +72,7 @@ response_received (GDBusConnection *bus,
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
 
-  if (call->cancelled_id)
-    {
-      g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
-      call->cancelled_id = 0;
-    }
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -148,6 +133,7 @@ call_returned (GObject *object,
   ret = g_dbus_connection_call_finish (bus, result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
       g_task_return_error (call->task, error);
       account_call_free (call);
     }
@@ -161,7 +147,7 @@ get_user_information (AccountCall *call)
   GCancellable *cancellable;
 
   if (call->parent_handle == NULL)
-    {   
+    {
       call->parent->parent_export (call->parent, parent_exported, call);
       return;
     }
@@ -203,19 +189,19 @@ get_user_information (AccountCall *call)
 
 /**
  * xdp_portal_get_user_information:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
- * @reason: (nullable) a string that can be shown in the dialog to explain
+ * @reason: (nullable): a string that can be shown in the dialog to explain
  *    why the information is needed
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Gets information about the user.
  *
  * When the request is done, @callback will be called. You can then
- * call xdp_portal_get_user_information_finish() to get the results.
+ * call [method@Portal.get_user_information_finish] to get the results.
  */
 void
 xdp_portal_get_user_information (XdpPortal *portal,
@@ -234,7 +220,7 @@ xdp_portal_get_user_information (XdpPortal *portal,
   call = g_new0 (AccountCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->reason = g_strdup (reason);
@@ -246,18 +232,20 @@ xdp_portal_get_user_information (XdpPortal *portal,
 
 /**
  * xdp_portal_get_user_information_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the get-user-information request, and returns
- * the result in the form of a #GVariant dictionary containing
- * the following fields:
+ * Finishes the get-user-information request.
+ *
+ * Returns the result in the form of a [struct@GLib.Variant] dictionary
+ * containing the following fields:
+ *
  * - id `s`: the user ID
  * - name `s`: the users real name
  * - image `s`: the uri of an image file for the users avatar picture
  *
- * Returns: (transfer full): a #GVariant dictionary with user information
+ * Returns: (transfer full): a [struct@GLib.Variant] dictionary with user information
  */
 GVariant *
 xdp_portal_get_user_information_finish (XdpPortal *portal,

@@ -1,0 +1,42 @@
+From: Simon McVittie <smcv@debian.org>
+Date: Sun, 22 Sep 2024 13:37:24 +0100
+Subject: tests: Divide tests into suites
+
+---
+ tests/meson.build     | 1 +
+ tests/qt5/meson.build | 2 +-
+ tests/qt6/meson.build | 2 +-
+ 3 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/tests/meson.build b/tests/meson.build
+index d126a06..880c48b 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -19,6 +19,7 @@ if meson.version().version_compare('>= 0.56.0')
+       pytest,
+       args: ['--verbose', '--verbose', '--log-level=DEBUG'],
+       env: test_env,
++      suite: 'pytest',
+       workdir: meson.current_source_dir(),
+       timeout: 180,
+     )
+diff --git a/tests/qt5/meson.build b/tests/qt5/meson.build
+index 37808ec..f942323 100644
+--- a/tests/qt5/meson.build
++++ b/tests/qt5/meson.build
+@@ -20,4 +20,4 @@ exe = executable('qt5-test',
+   cpp_args : '-std=c++11',
+ )
+ 
+-test('Qt 5 unit test', exe)
++test('Qt 5 unit test', exe, suite: 'qt5')
+diff --git a/tests/qt6/meson.build b/tests/qt6/meson.build
+index d6f91fb..3f1690c 100644
+--- a/tests/qt6/meson.build
++++ b/tests/qt6/meson.build
+@@ -20,4 +20,4 @@ exe = executable('qt6-test',
+   cpp_args : '-std=c++17',
+ )
+ 
+-test('Qt 6 unit test', exe)
++test('Qt 6 unit test', exe, suite: 'qt6')

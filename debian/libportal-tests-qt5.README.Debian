@@ -1,0 +1,14 @@
+Some features of the desktop portal are currently not expected to work
+correctly for an unconfined (non-sandboxed) application.
+
+To build the Qt 5 test as a Flatpak app, use commands similar to these:
+
+    flatpak --user remote-add --if-not-exists \
+        flathub https://flathub.org/repo/flathub.flatpakrepo
+    flatpak --user install flathub org.kde.Plaform//5.15
+    flatpak --user install flathub org.kde.Sdk//5.15
+    apt-get source libportal
+    cd libportal-*
+    flatpak-builder \
+        --force-clean --ccache --repo=_build/repo --install --user \
+        _build/app-Qt5 build-aux/org.gnome.PortalTest.Qt5.json

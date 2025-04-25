@@ -1,23 +1,25 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #pragma once
 
-#include <libportal/portal-helpers.h>
+#include <libportal/types.h>
 
 G_BEGIN_DECLS
 
@@ -63,7 +65,7 @@ void       xdp_portal_session_uninhibit           (XdpPortal            *portal,
  *     session from ending
  * @XDP_LOGIN_SESSION_ENDING: the session is about to end
  *
- * The values of this enum are returned in the #XdpPortal::session-state-changed signal
+ * The values of this enum are returned in the [signal@Portal::session-state-changed] signal
  * to indicate the current state of the user session.
  */
 typedef enum {

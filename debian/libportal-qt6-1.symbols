@@ -1,0 +1,14 @@
+libportal-qt6.so.1 libportal-qt6-1 #MINVER#
+* Build-Depends-Package: libportal-qt6-dev
+ (c++)"XdpQt::GVariantToQVariant(_GVariant*)@Base" 0.8.0
+ (c++)"XdpQt::filechooserChoicesToGVariant(QList<XdpQt::FileChooserChoice> const&)@Base" 0.8.0
+ (c++)"XdpQt::filechooserFilesToGVariant(QStringList const&)@Base" 0.8.0
+ (c++)"XdpQt::filechooserFilterToGVariant(XdpQt::FileChooserFilter const&)@Base" 0.8.0
+ (c++)"XdpQt::filechooserFiltersToGVariant(QList<XdpQt::FileChooserFilter> const&)@Base" 0.8.0
+ (c++)"XdpQt::filechooserResultFromGVariant(_GVariant*)@Base" 0.8.0
+ (c++)"XdpQt::getUserInformationResultFromGVariant(_GVariant*)@Base" 0.8.0
+ (c++)"XdpQt::globalPortalObject()@Base" 0.8.0
+ (c++)"XdpQt::notificationToGVariant(XdpQt::Notification const&)@Base" 0.8.0
+ (c++)"xdp_parent_new_qt(QWindow*)@Base" 0.8.0
+ (c++|optional)"QByteArray::~QByteArray()@Base" 0.8.0
+ (c++|optional)"QString::~QString()@Base" 0.8.0

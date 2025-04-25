@@ -1,18 +1,20 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
@@ -27,20 +29,7 @@
 #include <gio/gunixfdlist.h>
 
 #include "portal-private.h"
-#include "utils-private.h"
 #include "email.h"
-
-/**
- * SECTION:email
- * @title: Email
- * @short_description: composing email messages
- *
- * These functions let applications send email, by prompting
- * the user to compose a message. The email may already have
- * an address, subject, body or attachments.
- *
- * The underlying portal is org.freedesktop.portal.Email.
- */
 
 #ifndef O_PATH
 #define O_PATH 0
@@ -59,7 +48,7 @@ typedef struct {
   guint signal_id;
   GTask *task;
   char *request_path;
-  guint cancelled_id;
+  gulong cancelled_id;
 } EmailCall;
 
 static void
@@ -68,15 +57,14 @@ email_call_free (EmailCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
   g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_free (call->request_path);
 
@@ -107,11 +95,7 @@ response_received (GDBusConnection *bus,
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
 
-  if (call->cancelled_id)
-    {
-      g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
-      call->cancelled_id = 0;
-    }
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -173,6 +157,7 @@ call_returned (GObject *object,
   ret = g_dbus_connection_call_with_unix_fd_list_finish (bus, NULL, result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
       g_task_return_error (call->task, error);
       email_call_free (call);
     }
@@ -261,7 +246,7 @@ compose_email (EmailCall *call)
       for (i = 0; call->attachments[i]; i++)
         {
           g_autoptr(GError) error = NULL;
-          int fd;
+          g_autofd int fd = -1;
           int fd_in;
 
           fd = g_open (call->attachments[i], O_PATH | O_CLOEXEC);
@@ -281,7 +266,7 @@ compose_email (EmailCall *call)
 
       g_variant_builder_add (&options, "{sv}", "attachment_fds", g_variant_builder_end (&attach_fds));
     }
-  
+
   g_dbus_connection_call_with_unix_fd_list (call->portal->bus,
                                             PORTAL_BUS_NAME,
                                             PORTAL_OBJECT_PATH,
@@ -299,24 +284,24 @@ compose_email (EmailCall *call)
 
 /**
  * xdp_portal_compose_email:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
- * @addresses: (nullable): the email addresses to send to
- * @cc: (nullable): the email addresses to cc
- * @bcc: (nullable): the email addresses to bcc
+ * @addresses: (array zero-terminated=1) (nullable): the email addresses to send to
+ * @cc: (array zero-terminated=1) (nullable): the email addresses to cc
+ * @bcc: (array zero-terminated=1) (nullable): the email addresses to bcc
  * @subject: (nullable): the subject for the email
  * @body: (nullable): the body for the email
- * @attachments: (nullable): an array of paths for files to attach
+ * @attachments: (array zero-terminated=1) (nullable): an array of paths for files to attach
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Presents a window that lets the user compose an email,
  * with some pre-filled information.
  *
  * When the request is done, @callback will be called. You can then
- * call xdp_portal_compose_email_finish() to get the results.
+ * call [method@Portal.compose_email_finish] to get the results.
  */
 void
 xdp_portal_compose_email (XdpPortal *portal,
@@ -340,7 +325,7 @@ xdp_portal_compose_email (XdpPortal *portal,
   call = g_new0 (EmailCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->addresses = g_strdupv ((char**)addresses);
@@ -357,13 +342,13 @@ xdp_portal_compose_email (XdpPortal *portal,
 
 /**
  * xdp_portal_compose_email_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
  * Finishes the compose-email request.
  *
- * Returns: %TRUE if the request was handled successfully
+ * Returns: `TRUE` if the request was handled successfully
  */
 gboolean
 xdp_portal_compose_email_finish (XdpPortal *portal,

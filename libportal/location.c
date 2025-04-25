@@ -1,35 +1,27 @@
 /*
  * Copyright (C) 2019, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
 
 #include "location.h"
 #include "portal-private.h"
-#include "utils-private.h"
 
-
-/**
- * SECTION:location
- * @title: Location
- * @short_description: access to location information
- *
- * Location monitoring makes location information available
- * via the #XdpPortal::location-updated signal.
- */
 
 typedef struct {
   XdpPortal *portal;
@@ -39,7 +31,7 @@ typedef struct {
   guint signal_id;
   GTask *task;
   char *request_path;
-  guint cancelled_id;
+  gulong cancelled_id;
   int distance;
   int time;
   XdpLocationAccuracy accuracy;
@@ -51,15 +43,14 @@ create_call_free (CreateCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
- g_free (call->parent_handle);
+  g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_free (call->request_path);
 
@@ -83,6 +74,8 @@ session_started (GDBusConnection *bus,
   CreateCall *call = data;
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
+
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -116,18 +109,27 @@ location_updated (GDBusConnection *bus,
                   gpointer data)
 {
   XdpPortal *portal = data;
-  int latitude, longitude, altitude;
-  int accuracy, speed, heading;
+  g_autoptr(GVariant) variant = NULL;
+  const char *handle = NULL;
+  double latitude, longitude, altitude;
+  double accuracy, speed, heading;
+  const char *description = NULL;
   gint64 timestamp_s, timestamp_ms;
 
-  g_variant_get (parameters, "(ddddddtt)",
-                 &latitude, &longitude, &altitude,
-                 &accuracy, &speed, &heading,
-                 &timestamp_s, &timestamp_ms);
+  g_variant_get (parameters, "(o@a{sv})", &handle, &variant);
+  g_variant_lookup (variant, "Latitude", "d", &latitude);
+  g_variant_lookup (variant, "Longitude", "d", &longitude);
+  g_variant_lookup (variant, "Accuracy", "d", &accuracy);
+  g_variant_lookup (variant, "Altitude", "d", &altitude);
+  g_variant_lookup (variant, "Speed", "d", &speed);
+  g_variant_lookup (variant, "Heading", "d", &heading);
+  g_variant_lookup (variant, "Description", "&s", &description);
+  g_variant_lookup (variant, "Timestamp", "(tt)", &timestamp_s, &timestamp_ms);
+
   g_signal_emit_by_name (portal, "location-updated",
                          latitude, longitude, altitude,
                          accuracy, speed, heading,
-                         timestamp_s, timestamp_ms);
+                         description, timestamp_s, timestamp_ms);
 }
 
 static void
@@ -139,7 +141,7 @@ ensure_location_updated_connected (XdpPortal *portal)
                                             PORTAL_BUS_NAME,
                                             "org.freedesktop.portal.Location",
                                             "LocationUpdated",
-                                            portal->location_monitor_handle,
+                                            PORTAL_OBJECT_PATH,
                                             NULL,
                                             G_DBUS_SIGNAL_FLAGS_NO_MATCH_RULE,
                                             location_updated,
@@ -181,6 +183,7 @@ call_returned (GObject *object,
   ret = g_dbus_connection_call_finish (G_DBUS_CONNECTION (object), result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
       g_task_return_error (call->task, error);
       create_call_free (call);
     }
@@ -306,28 +309,28 @@ create_session (CreateCall *call)
 
 /**
  * xdp_portal_location_monitor_start:
- * @portal: a #XdpPortal
- * @parent: (nullable): a #XdpParent, or %NULL
+ * @portal: a [class@Portal]
+ * @parent: (nullable): a [struct@Parent], or `NULL`
  * @distance_threshold: distance threshold, in meters
  * @time_threshold: time threshold, in seconds
  * @accuracy: desired accuracy
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Makes XdpPortal start monitoring location changes.
+ * Makes `XdpPortal` start monitoring location changes.
  *
- * When the location changes, the #XdpPortal::location-updated.
+ * When the location changes, the [signal@Portal::location-updated].
  * signal is emitted.
  *
- * Use xdp_portal_location_monitor_stop() to stop monitoring.
+ * Use [method@Portal.location_monitor_stop] to stop monitoring.
  *
- * Note that #XdpPortal only maintains a single location monitor
+ * Note that [class@Portal] only maintains a single location monitor
  * at a time. If you want to change the @distance_threshold,
  * @time_threshold or @accuracy of the current monitor, you
- * first have to call xdp_portal_location_monitor_stop() to
- * stop monitoring. 
+ * first have to call [method@Portal.location_monitor_stop] to
+ * stop monitoring.
  */
 void
 xdp_portal_location_monitor_start (XdpPortal *portal,
@@ -348,7 +351,7 @@ xdp_portal_location_monitor_start (XdpPortal *portal,
   call = g_new0 (CreateCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->distance = distance_threshold;
@@ -362,14 +365,15 @@ xdp_portal_location_monitor_start (XdpPortal *portal,
 
 /**
  * xdp_portal_location_monitor_start_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes a location-monitor request, and returns
- * the result in the form of boolean.
+ * Finishes a location-monitor request.
  *
- * Returns: %TRUE if the request succeeded
+ * Returns result in the form of boolean.
+ *
+ * Returns: `TRUE` if the request succeeded
  */
 gboolean
 xdp_portal_location_monitor_start_finish (XdpPortal *portal,
@@ -385,10 +389,10 @@ xdp_portal_location_monitor_start_finish (XdpPortal *portal,
 
 /**
  * xdp_portal_location_monitor_stop:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  *
  * Stops location monitoring that was started with
- * xdp_portal_location_monitor_start().
+ * [method@Portal.location_monitor_start].
  */
 void
 xdp_portal_location_monitor_stop (XdpPortal *portal)

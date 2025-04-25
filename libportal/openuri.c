@@ -1,18 +1,20 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
@@ -29,18 +31,6 @@
 #include <gio/gunixfdlist.h>
 
 #include "portal-private.h"
-#include "utils-private.h"
-
-/**
- * SECTION:open
- * @title: Open
- * @short_description: handle URIs
- *
- * These functions let applications open URIs in external handlers.
- * A typical example is to open a pdf file in a document viewer.
- *
- * The underlying portal is org.freedesktop.portal.OpenURI.
- */
 
 typedef struct {
   XdpPortal *portal;
@@ -53,7 +43,7 @@ typedef struct {
   guint signal_id;
   GTask *task;
   char *request_path;
-  guint cancelled_id;
+  gulong cancelled_id;
 } OpenCall;
 
 static void
@@ -62,15 +52,14 @@ open_call_free (OpenCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
   g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_free (call->request_path);
 
@@ -93,6 +82,8 @@ response_received (GDBusConnection *bus,
   OpenCall *call = data;
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
+
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -158,6 +149,7 @@ call_returned (GObject *object,
 
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
       g_task_return_error (call->task, error);
       open_call_free (call);
     }
@@ -224,6 +216,8 @@ do_open (OpenCall *call)
           g_task_return_new_error (call->task, G_IO_ERROR, G_IO_ERROR_FAILED, "Failed to open '%s'", call->uri);
           open_call_free (call);
 
+          g_variant_builder_clear (&options);
+
           return;
         }
 
@@ -264,15 +258,15 @@ do_open (OpenCall *call)
 
 /**
  * xdp_portal_open_uri:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: parent window information
  * @uri: the URI to open
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Opens @uri with an external hamdler.
+ * Opens @uri with an external handler.
  */
 void
 xdp_portal_open_uri (XdpPortal *portal,
@@ -292,7 +286,7 @@ xdp_portal_open_uri (XdpPortal *portal,
   call = g_new0 (OpenCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->uri = g_strdup (uri);
@@ -307,14 +301,15 @@ xdp_portal_open_uri (XdpPortal *portal,
 
 /**
  * xdp_portal_open_uri_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the open-uri request, and returns
- * the result in the form of a boolean.
+ * Finishes the open-uri request.
  *
- * Returns: %TRUE if the call succeeded
+ * Returns the result in the form of a boolean.
+ *
+ * Returns: `TRUE` if the call succeeded
  */
 gboolean
 xdp_portal_open_uri_finish (XdpPortal *portal,
@@ -330,16 +325,17 @@ xdp_portal_open_uri_finish (XdpPortal *portal,
 
 /**
  * xdp_portal_open_directory:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: parent window information
  * @uri: the URI to open
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Opens the directory containing the file specified by the @uri. which
- * must be a file: uri pointing to a file that the application has access
+ * Opens the directory containing the file specified by the @uri.
+ *
+ * which must be a file: uri pointing to a file that the application has access
  * to.
  */
 void
@@ -359,7 +355,7 @@ xdp_portal_open_directory (XdpPortal *portal,
   call = g_new0 (OpenCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->uri = g_strdup (uri);
@@ -374,14 +370,15 @@ xdp_portal_open_directory (XdpPortal *portal,
 
 /**
  * xdp_portal_open_directory_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the open-directory request, and returns
- * the result in the form of a boolean.
+ * Finishes the open-directory request.
  *
- * Returns: %TRUE if the call succeeded
+ * Returns the result in the form of a boolean.
+ *
+ * Returns: `TRUE` if the call succeeded
  */
 gboolean
 xdp_portal_open_directory_finish (XdpPortal     *portal,

@@ -1,40 +1,26 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
 
 #include "filechooser.h"
 #include "portal-private.h"
-#include "utils-private.h"
-
-/**
- * SECTION:filechooser
- * @title: File
- * @short_description: access to files outside the sandbox
- *
- * These functions let applications ask the user for access to
- * files outside the sandbox, by presenting a file chooser dialog.
- *
- * The selected files will be made accessible to the application
- * via the document portal, and the returned URI will point
- * into the document portal fuse filesystem in /run/user/$UID/doc/.
- *
- * The underlying portal is org.freedesktop.portal.FileChooser.
- */
 
 typedef struct {
   XdpPortal *portal;
@@ -53,7 +39,7 @@ typedef struct {
   guint signal_id;
   GTask *task;
   char *request_path;
-  guint cancelled_id;
+  gulong cancelled_id;
 } FileCall;
 
 static void
@@ -62,16 +48,14 @@ file_call_free (FileCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
   g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
-
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
   g_free (call->request_path);
 
   g_object_unref (call->portal);
@@ -107,11 +91,7 @@ response_received (GDBusConnection *bus,
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
 
-  if (call->cancelled_id)
-    {
-      g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
-      call->cancelled_id = 0;
-    }
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -171,6 +151,7 @@ call_returned (GObject *object,
   ret = g_dbus_connection_call_finish (G_DBUS_CONNECTION (object), result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
       g_task_return_error (call->task, error);
       file_call_free (call);
     }
@@ -241,43 +222,43 @@ open_file (FileCall *call)
 
 /**
  * xdp_portal_open_file:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
  * @title: title for the file chooser dialog
- * @filters: (nullable): a #GVariant describing file filters
- * @current_filter: (nullable): a #GVariant describing the current file filter
- * @choices: (nullable): a #GVariant describing extra widgets
+ * @filters: (nullable): a [struct@GLib.Variant] describing file filters
+ * @current_filter: (nullable): a [struct@GLib.Variant] describing the current file filter
+ * @choices: (nullable): a [struct@GLib.Variant] describing extra widgets
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Asks the user to open one or more files.
  *
- * The format for the @filters argument is a(sa(us)).
+ * The format for the @filters argument is `a(sa(us))`.
  * Each item in the array specifies a single filter to offer to the user.
- * The first string is a user-visible name for the filter. The a(us)
+ * The first string is a user-visible name for the filter. The `a(us)`
  * specifies a list of filter strings, which can be either a glob pattern
  * (indicated by 0) or a mimetype (indicated by 1).
  * 
- * Example: [('Images', [(0, '*.ico'), (1, 'image/png')]), ('Text', [(0, '*.txt')])]
+ * Example: `[('Images', [(0, '*.ico'), (1, 'image/png')]), ('Text', [(0, '*.txt')])]`
  *
- * The format for the @choices argument is a(ssa(ss)s).
+ * The format for the @choices argument is `a(ssa(ss)s)`.
  * For each element, the first string is an ID that will be returned
  * with the response, te second string is a user-visible label. The
- * a(ss) is the list of choices, each being a is an ID and a
+ * `a(ss)` is the list of choices, each being a is an ID and a
  * user-visible label. The final string is the initial selection,
- * or "", to let the portal decide which choice will be initially selected.
+ * or `""`, to let the portal decide which choice will be initially selected.
  * None of the strings, except for the initial selection, should be empty.
  * 
  * As a special case, passing an empty array for the list of choices
  * indicates a boolean choice that is typically displayed as a check
- * button, using "true" and "false" as the choices.
+ * button, using `"true"` and `"false"` as the choices.
  *
- * Example: [('encoding', 'Encoding', [('utf8', 'Unicode (UTF-8)'), ('latin15', 'Western')], 'latin15'), ('reencode', 'Reencode', [], 'false')]
+ * Example: `[('encoding', 'Encoding', [('utf8', 'Unicode (UTF-8)'), ('latin15', 'Western')], 'latin15'), ('reencode', 'Reencode', [], 'false')]`
  *
  * When the request is done, @callback will be called. You can then
- * call xdp_portal_open_file_finish() to get the results.
+ * call [method@Portal.open_file_finish] to get the results.
  */
 void
 xdp_portal_open_file (XdpPortal *portal,
@@ -299,7 +280,7 @@ xdp_portal_open_file (XdpPortal *portal,
   call = g_new0 (FileCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->method = "OpenFile";
@@ -316,59 +297,58 @@ xdp_portal_open_file (XdpPortal *portal,
 
 /**
  * xdp_portal_open_file_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the open-file request, and returns
- * the result in the form of a #GVariant dictionary containing
- * the following fields:
+ * Finishes the open-file request
+ *
+ * Returns the result in the form of a [struct@GLib.Variant] dictionary
+ * containing the following fields:
+ *
  * - uris `as`: an array of strings containing the uris of selected files
  * - choices `a(ss)`: an array of pairs of strings, the first string being the
  *     ID of a combobox that was passed into this call, the second string
  *     being the selected option.
  *
- * Returns: (transfer full): a #GVariant dictionary with the results
+ * Returns: (transfer full): a [struct@GLib.Variant] dictionary with the results
  */
 GVariant *
 xdp_portal_open_file_finish (XdpPortal *portal,
                              GAsyncResult *result,
                              GError **error)
 {
-  GVariant *ret;
-
   g_return_val_if_fail (XDP_IS_PORTAL (portal), NULL);
   g_return_val_if_fail (g_task_is_valid (result, portal), NULL);
   g_return_val_if_fail (g_task_get_source_tag (G_TASK (result)) == xdp_portal_open_file, NULL);
 
-  ret = g_task_propagate_pointer (G_TASK (result), error);
-  return ret ? g_variant_ref (ret) : NULL;
+  return g_task_propagate_pointer (G_TASK (result), error);
 }
 
 /**
  * xdp_portal_save_file:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
  * @title: title for the file chooser dialog
  * @current_name: (nullable): suggested filename
  * @current_folder: (nullable): suggested folder to save the file in
  * @current_file: (nullable): the current file (when saving an existing file)
- * @filters: (nullable): a #GVariant describing file filters
- * @current_filter: (nullable): a #GVariant describing the current file filter
- * @choices: (nullable): a #GVariant describing extra widgets
+ * @filters: (nullable): a [struct@GLib.Variant] describing file filters
+ * @current_filter: (nullable): a [struct@GLib.Variant] describing the current file filter
+ * @choices: (nullable): a [struct@GLib.Variant] describing extra widgets
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Asks the user for a location to save a file.
  *
- * The format for the @filters argument is the same as for xdp_portal_open_file().
+ * The format for the @filters argument is the same as for [method@Portal.open_file].
 
- * The format for the @choices argument is the same as for xdp_portal_open_file().
+ * The format for the @choices argument is the same as for [method@Portal.open_file].
  *
  * When the request is done, @callback will be called. You can then
- * call xdp_portal_save_file_finish() to get the results.
+ * call [method@Portal.save_file_finish] to get the results.
  */
 void
 xdp_portal_save_file (XdpPortal *portal,
@@ -393,7 +373,7 @@ xdp_portal_save_file (XdpPortal *portal,
   call = g_new0 (FileCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->method = "SaveFile";
@@ -412,60 +392,59 @@ xdp_portal_save_file (XdpPortal *portal,
 
 /**
  * xdp_portal_save_file_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the save-file request, and returns
- * the result in the form of a #GVariant dictionary containing
- * the following fields:
+ * Finishes the save-file request.
+ *
+ * Returns the result in the form of a [struct@GLib.Variant] dictionary
+ * containing the following fields:
+ *
  * - uris `(as)`: an array of strings containing the uri of the selected file
  * - choices `a(ss)`: an array of pairs of strings, the first string being the
  *   ID of a combobox that was passed into this call, the second string
  *   being the selected option.
  *
- * Returns: (transfer full): a #GVariant dictionary with the results
+ * Returns: (transfer full): a [struct@GLib.Variant] dictionary with the results
  */
 GVariant *
 xdp_portal_save_file_finish (XdpPortal *portal,
                              GAsyncResult *result,
                              GError **error)
 {
-  GVariant *ret;
-
   g_return_val_if_fail (XDP_IS_PORTAL (portal), NULL);
   g_return_val_if_fail (g_task_is_valid (result, portal), NULL);
   g_return_val_if_fail (g_task_get_source_tag (G_TASK (result)) == xdp_portal_save_file, NULL);
 
-  ret = g_task_propagate_pointer (G_TASK (result), error);
-  return ret ? g_variant_ref (ret) : NULL;
+  return g_task_propagate_pointer (G_TASK (result), error);
 }
 
 /**
  * xdp_portal_save_files:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
  * @title: title for the file chooser dialog
  * @current_name: (nullable): suggested filename
  * @current_folder: (nullable): suggested folder to save the file in
  * @files: An array of file names to be saved
- * @choices: (nullable): a #GVariant describing extra widgets
+ * @choices: (nullable): a [struct@GLib.Variant] describing extra widgets
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Asks for a folder as a location to save one or more files. The
- * names of the files will be used as-is and appended to the selected
- * folder's path in the list of returned files. If the selected folder
- * already contains a file with one of the given names, the portal may
- * prompt or take some other action to construct a unique file name and
- * return that instead.
+ * Asks for a folder as a location to save one or more files.
  *
- * The format for the @choices argument is the same as for xdp_portal_open_file().
+ * The names of the files will be used as-is and appended to the selected
+ * folder's path in the list of returned files. If the selected folder already
+ * contains a file with one of the given names, the portal may prompt or take
+ * some other action to construct a unique file name and return that instead.
+ *
+ * The format for the @choices argument is the same as for [method@Portal.open_file].
  *
  * When the request is done, @callback will be called. You can then
- * call xdp_portal_save_file_finish() to get the results.
+ * call [method@Portal.save_file_finish] to get the results.
  */
 void
 xdp_portal_save_files (XdpPortal *portal,
@@ -489,7 +468,7 @@ xdp_portal_save_files (XdpPortal *portal,
   call = g_new0 (FileCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->method = "SaveFiles";
@@ -506,13 +485,15 @@ xdp_portal_save_files (XdpPortal *portal,
 
 /**
  * xdp_portal_save_files_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the save-files request, and returns
- * the result in the form of a #GVariant dictionary containing
- * the following fields:
+ * Finishes the save-files request.
+ *
+ * Returns the result in the form of a [struct@GLib.Variant] dictionary
+ * containing the following fields:
+ *
  * - uris `(as)`: an array of strings containing the uri corresponding to each
  *   file passed to the save-files request, in the same order. Note that the
  *   file names may have changed, for example if a file with the same name in
@@ -521,19 +502,16 @@ xdp_portal_save_files (XdpPortal *portal,
  *   ID of a combobox that was passed into this call, the second string
  *   being the selected option.
  *
- * Returns: (transfer full): a #GVariant dictionary with the results
+ * Returns: (transfer full): a [struct@GLib.Variant] dictionary with the results
  */
 GVariant *
 xdp_portal_save_files_finish (XdpPortal *portal,
                               GAsyncResult *result,
                               GError **error)
 {
-  GVariant *ret;
-
   g_return_val_if_fail (XDP_IS_PORTAL (portal), NULL);
   g_return_val_if_fail (g_task_is_valid (result, portal), NULL);
   g_return_val_if_fail (g_task_get_source_tag (G_TASK (result)) == xdp_portal_save_files, NULL);
 
-  ret = g_task_propagate_pointer (G_TASK (result), error);
-  return ret ? g_variant_ref (ret) : NULL;
+  return g_task_propagate_pointer (G_TASK (result), error);
 }

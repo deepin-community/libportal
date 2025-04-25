@@ -6,22 +6,84 @@ built_binaries := $(shell dh_listpackages)
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,-O1 -Wl,-z,defs
+# https://qt-kde-team.pages.debian.net/packagingqtbasedstuff.html
+export QT_SELECT=5
 
 export VERBOSE=1
 
 meson_options =
 
-ifeq ($(filter libportal-tests,$(built_binaries)),)
-meson_options += -Dbuild-portal-test=false
+ifeq ($(DEB_HOST_ARCH),$(DEB_BUILD_ARCH))
+native_or_cross = native
 else
-meson_options += -Dbuild-portal-test=true
+native_or_cross = cross
+meson_options += --cross-file=$(DEB_HOST_GNU_TYPE)-gobject-introspection.ini
 endif
+
+ifneq ($(filter libportal-gtk3-% libportal-%-gtk3,$(built_binaries)),)
+meson_options += -Dbackend-gtk3=enabled
+else
+meson_options += -Dbackend-gtk3=disabled
+endif
+
+ifneq ($(filter libportal-gtk4-dev libportal-%-gtk4,$(built_binaries)),)
+meson_options += -Dbackend-gtk4=enabled
+else
+meson_options += -Dbackend-gtk4=disabled
+endif
+
+ifneq ($(filter libportal-qt5-dev libportal-%-qt5,$(built_binaries)),)
+meson_options += -Dbackend-qt5=enabled
+else
+meson_options += -Dbackend-qt5=disabled
+endif
+
+# We don't build packages for Qt 6 yet, that will require a trip through NEW
+ifeq ($(filter pkg.libportal.noqt6,$(DEB_BUILD_PROFILES)),)
+meson_options += -Dbackend-qt6=enabled
+else
+meson_options += -Dbackend-qt6=disabled
+endif
+
+ifeq ($(filter libportal-doc,$(built_binaries)),)
+meson_options += -Ddocs=false
+else
+meson_options += -Ddocs=true
+endif
+
+ifeq ($(filter libportal-tests-%,$(built_binaries)),)
+meson_options += -Dportal-tests=false
+else
+meson_options += -Dportal-tests=true
+endif
+
+meson_options += --$(native_or_cross)-file=$(CURDIR)/debian/meson/vapigen.ini
+
+ifeq ($(filter libportal-tests-gtk4,$(built_binaries)),)
+meson_options += --$(native_or_cross)-file=$(CURDIR)/debian/meson/no-gjs.ini
+endif
+
+test_timeout_multiplier = 3
+meson_test_options = --timeout-multiplier $(test_timeout_multiplier)
 
 %:
 	dh $@
 
 override_dh_auto_configure:
+	sed \
+		-e 's|@bindir@|$(CURDIR)/debian|g' \
+		-e 's|@DEB_HOST_GNU_TYPE@|$(DEB_HOST_GNU_TYPE)|g' \
+		< debian/meson/vapigen.ini.in > debian/meson/vapigen.ini
+	sed \
+		-e 's|@DEB_HOST_MULTIARCH@|$(DEB_HOST_MULTIARCH)|g' \
+		< debian/vapigen.in > debian/$(DEB_HOST_GNU_TYPE)-vapigen
+	chmod 0755 debian/$(DEB_HOST_GNU_TYPE)-vapigen
 	dh_auto_configure \
 		-- \
 		$(meson_options) \
 		$(NULL)
+
+xvfb_run = xvfb-run -e /proc/self/fd/2 -a -s "-screen 0 1280x1024x24 -noreset"
+
+override_dh_auto_test:
+	$(xvfb_run) dh_auto_test -- $(meson_test_options)

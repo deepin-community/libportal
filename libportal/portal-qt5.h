@@ -1,68 +1,117 @@
 /*
- * Copyright (C) 2020, Jan Grulich
+ * Copyright (C) 2020-2022, Jan Grulich
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #pragma once
 
 #include <libportal/portal.h>
 
-#include <QX11Info>
+#include <QMap>
+#include <QStringList>
+#include <QSharedPointer>
+#include <QVariant>
 #include <QWindow>
 
-static inline gboolean _xdp_parent_export_qt (XdpParent *parent,
-                                              XdpParentExported callback,
-                                              gpointer data)
-{
-  if (QX11Info::isPlatformX11 ())
-    {
-      QWindow *w = (QWindow *) parent->data;
-      if (w) {
-        guint32 xid = (guint32) w->winId ();
-        g_autofree char *handle = g_strdup_printf ("x11:%x", xid);
-        callback (parent, handle, data);
-        return TRUE;
-      }
-    }
-  else
-    {
-      /* TODO: QtWayland doesn't support xdg-foreign protocol yet
-       * Upstream bugs: https://bugreports.qt.io/browse/QTBUG-73801
-       *                https://bugreports.qt.io/browse/QTBUG-76983
-       */
-      g_warning ("QtWayland doesn't support xdg-foreign protocol yet");
-      g_autofree char *handle = g_strdup ("");
-      callback (parent, handle, data);
-      return TRUE;
-    }
+XDP_PUBLIC
+XdpParent *xdp_parent_new_qt (QWindow *window);
 
-  g_warning ("Couldn't export handle, unsupported windowing system");
-  return FALSE;
-}
+namespace XdpQt {
 
-static inline void _xdp_parent_unexport_qt (XdpParent *parent)
-{
-}
+// Returns a global instance of XdpPortal object and takes care
+// of its deletion
+XDP_PUBLIC
+XdpPortal *globalPortalObject();
 
-static inline XdpParent *xdp_parent_new_qt (QWindow *window);
+// Account portal helpers
+struct GetUserInformationResult {
+    QString id;
+    QString name;
+    QString image;
+};
 
-static inline XdpParent *xdp_parent_new_qt (QWindow *window)
-{
-  XdpParent *parent = g_new0 (XdpParent, 1);
-  parent->parent_export = _xdp_parent_export_qt;
-  parent->parent_unexport = _xdp_parent_unexport_qt;
-  parent->data = (gpointer) window;
-  return parent;
-}
+XDP_PUBLIC
+GetUserInformationResult getUserInformationResultFromGVariant(GVariant *variant);
+
+// FileChooser portal helpers
+enum FileChooserFilterRuleType{
+    Pattern = 0,
+    Mimetype = 1
+};
+
+struct FileChooserFilterRule {
+    FileChooserFilterRuleType type;
+    QString rule;
+};
+
+struct FileChooserFilter {
+    QString label;
+    QList<FileChooserFilterRule> rules;
+};
+
+struct FileChooserChoice {
+    QString id;
+    QString label;
+    QMap<QString, QString> options;
+    QString selected;
+};
+
+XDP_PUBLIC
+GVariant *filechooserFilesToGVariant(const QStringList &files);
+
+XDP_PUBLIC
+GVariant *filechooserFilterToGVariant(const FileChooserFilter &filter);
+
+XDP_PUBLIC
+GVariant *filechooserFiltersToGVariant(const QList<FileChooserFilter> &filters);
+
+XDP_PUBLIC
+GVariant *filechooserChoicesToGVariant(const QList<FileChooserChoice> &choices);
+
+struct FileChooserResult {
+    QMap<QString, QString> choices;
+    QStringList uris;
+};
+
+XDP_PUBLIC
+FileChooserResult filechooserResultFromGVariant(GVariant *variant);
+
+// Notification portal helpers
+struct NotificationButton {
+    QString label;
+    QString action;
+    QVariant target;
+};
+
+struct Notification {
+    QString title;
+    QString body;
+    QString icon;
+    QPixmap pixmap;
+    QString priority;
+    QString defaultAction;
+    QVariant defaultTarget;
+    QList<NotificationButton> buttons;
+};
+
+XDP_PUBLIC
+GVariant *notificationToGVariant(const Notification &notification);
+
+XDP_PUBLIC
+QVariant GVariantToQVariant(GVariant *variant);
+
+} // namespace XdpQt

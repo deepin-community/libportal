@@ -1,3 +1,33 @@
 Tests: libportal-dev
 Restrictions: superficial
-Depends: build-essential, dbus, libportal-dev
+Depends:
+ build-essential,
+ dbus,
+ libportal-dev,
+
+Tests: libportal-gtk3-dev
+Restrictions: superficial
+Depends:
+ build-essential,
+ dbus,
+ libportal-gtk3-dev,
+ xauth,
+ xvfb,
+
+Tests: libportal-gtk4-dev
+Restrictions: superficial
+Depends:
+ build-essential,
+ dbus,
+ libportal-gtk4-dev,
+ xauth,
+ xvfb,
+
+Tests: libportal-qt5-dev
+Restrictions: superficial
+Depends:
+ build-essential,
+ dbus,
+ libportal-qt5-dev,
+ xauth,
+ xvfb,

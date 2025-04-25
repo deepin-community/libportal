@@ -1,3 +1,5 @@
 usr/include/libportal
 usr/lib/*/libportal.so
 usr/lib/*/pkgconfig/libportal.pc
+usr/share/gir-*/Xdp-*.gir
+usr/share/vala/vapi/libportal.*

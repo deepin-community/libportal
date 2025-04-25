@@ -1,40 +1,26 @@
 /*
  * Copyright (C) 2018, Matthias Clasen
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * This file is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, version 3.0 of the
+ * License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
  */
 
 #include "config.h"
 
 #include "inhibit.h"
 #include "portal-private.h"
-#include "utils-private.h"
-
-/**
- * SECTION:inhibit
- * @title: Session
- * @short_description: session state changes
- *
- * These functions let applications inhibit certain login session
- * state changes, and be informed about the impending end of the
- * session.
- *
- * A typical use for this functionality is to prevent the session
- * from locking while a video is playing.
- *
- * The underlying portal is org.freedesktop.portal.Inhibit.
- */
 
 typedef struct {
   XdpPortal *portal;
@@ -42,7 +28,7 @@ typedef struct {
   char *parent_handle;
   XdpInhibitFlags inhibit;
   guint signal_id;
-  guint cancelled_id;
+  gulong cancelled_id;
   char *request_path;
   char *reason;
   GTask *task;
@@ -55,15 +41,14 @@ inhibit_call_free (InhibitCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
- g_free (call->parent_handle);
+  g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_object_unref (call->portal);
   g_object_unref (call->task);
@@ -98,6 +83,8 @@ call_returned (GObject *object,
   ret = g_dbus_connection_call_finish (G_DBUS_CONNECTION (object), result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
+
       g_hash_table_remove (call->portal->inhibit_handles, GINT_TO_POINTER (call->id));
       g_task_return_error (call->task, error);
       inhibit_call_free (call);
@@ -116,6 +103,8 @@ response_received (GDBusConnection *bus,
   InhibitCall *call = data;
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
+
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -141,7 +130,7 @@ inhibit_cancelled_cb (GCancellable *cancellable,
 {
   InhibitCall *call = data;
 
-g_debug ("inhibit cancelled, calling Close");
+  g_debug ("inhibit cancelled, calling Close");
   g_dbus_connection_call (call->portal->bus,
                           PORTAL_BUS_NAME,
                           call->request_path,
@@ -211,20 +200,20 @@ do_inhibit (InhibitCall *call)
 
 /**
  * xdp_portal_session_inhibit:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @parent: (nullable): parent window information
  * @reason: (nullable): user-visible reason for the inhibition
  * @flags: information about what to inhibit
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
  * Inhibits various session status changes.
  *
  * To obtain an ID that can be used to undo the inhibition, use
- * xdp_portal_session_inhibit_finish() in the callback.
+ * [method@Portal.session_inhibit_finish] in the callback.
  *
- * To remove an active inhibitor, call xdp_portal_session_uninhibit()
+ * To remove an active inhibitor, call [method@Portal.session_uninhibit]
  * with the same ID.
  */
 void
@@ -254,7 +243,7 @@ xdp_portal_session_inhibit (XdpPortal            *portal,
   call = g_new0 (InhibitCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->inhibit = flags;
@@ -268,13 +257,14 @@ xdp_portal_session_inhibit (XdpPortal            *portal,
 
 /**
  * xdp_portal_session_inhibit_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes the inhbit request, and returns the ID of the
- * inhibition as a positive integer. The ID can be passed to
- * xdg_portal_session_uninhibit() to undo the inhibition.
+ * Finishes the inhbit request.
+ *
+ * Returns the ID of the inhibition as a positive integer. The ID can be passed
+ * to [method@Portal.session_uninhibit] to undo the inhibition.
  *
  * Returns: the ID of the inhibition, or -1 if there was an error
  */
@@ -292,11 +282,11 @@ xdp_portal_session_inhibit_finish (XdpPortal *portal,
 
 /**
  * xdp_portal_session_uninhibit:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  * @id: unique ID for an active inhibition
  *
  * Removes an inhibitor that was created by a call
- * to xdp_portal_session_inhibit().
+ * to [method@Portal.session_inhibit].
  */
 void
 xdp_portal_session_uninhibit (XdpPortal *portal,
@@ -337,7 +327,7 @@ typedef struct {
   GTask *task;
   char *request_path;
   guint signal_id;
-  guint cancelled_id;
+  gulong cancelled_id;
   char *id;
 } CreateMonitorCall;
 
@@ -347,15 +337,14 @@ create_monitor_call_free (CreateMonitorCall *call)
   if (call->parent)
     {
       call->parent->parent_unexport (call->parent);
-      _xdp_parent_free (call->parent);
+      xdp_parent_free (call->parent);
     }
   g_free (call->parent_handle);
 
   if (call->signal_id)
     g_dbus_connection_signal_unsubscribe (call->portal->bus, call->signal_id);
 
-  if (call->cancelled_id)
-    g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_free (call->request_path);
   g_free (call->id);
@@ -426,11 +415,7 @@ create_response_received (GDBusConnection *bus,
   guint32 response;
   g_autoptr(GVariant) ret = NULL;
 
-  if (call->cancelled_id)
-    {
-      g_signal_handler_disconnect (g_task_get_cancellable (call->task), call->cancelled_id);
-      call->cancelled_id = 0;
-    }
+  g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
 
   g_variant_get (parameters, "(u@a{sv})", &response, &ret);
 
@@ -490,6 +475,7 @@ create_returned (GObject *object,
   ret = g_dbus_connection_call_finish (G_DBUS_CONNECTION (object), result, &error);
   if (error)
     {
+      g_clear_signal_handler (&call->cancelled_id, g_task_get_cancellable (call->task));
       g_task_return_error (call->task, error);
       create_monitor_call_free (call);
     }
@@ -556,19 +542,19 @@ create_monitor (CreateMonitorCall *call)
 
 /**
  * xdp_portal_session_monitor_start:
- * @portal: a #XdpPortal
- * @parent: (nullable): a XdpParent, or %NULL
+ * @portal: a [class@Portal]
+ * @parent: (nullable): a XdpParent, or `NULL`
  * @flags: options for this call
- * @cancellable: (nullable): optional #GCancellable
+ * @cancellable: (nullable): optional [class@Gio.Cancellable]
  * @callback: (scope async): a callback to call when the request is done
- * @data: (closure): data to pass to @callback
+ * @data: data to pass to @callback
  *
- * Makes XdpPortal start monitoring the login session state.
+ * Makes [class@Portal] start monitoring the login session state.
  *
- * When the state changes, the #XdpPortal::session-state-changed
+ * When the state changes, the [signal@Portal::session-state-changed]
  * signal is emitted.
  *
- * Use xdp_portal_session_monitor_stop() to stop monitoring.
+ * Use [method@Portal.session_monitor_stop] to stop monitoring.
  */
 void
 xdp_portal_session_monitor_start (XdpPortal *portal,
@@ -587,7 +573,7 @@ xdp_portal_session_monitor_start (XdpPortal *portal,
   call = g_new0 (CreateMonitorCall, 1);
   call->portal = g_object_ref (portal);
   if (parent)
-    call->parent = _xdp_parent_copy (parent);
+    call->parent = xdp_parent_copy (parent);
   else
     call->parent_handle = g_strdup ("");
   call->task = g_task_new (portal, cancellable, callback, data);
@@ -598,14 +584,15 @@ xdp_portal_session_monitor_start (XdpPortal *portal,
 
 /**
  * xdp_portal_session_monitor_start_finish:
- * @portal: a #XdpPortal
- * @result: a #GAsyncResult
+ * @portal: a [class@Portal]
+ * @result: a [iface@Gio.AsyncResult]
  * @error: return location for an error
  *
- * Finishes a session-monitor request, and returns
- * the result in the form of boolean.
+ * Finishes a session-monitor request.
  *
- * Returns: %TRUE if the request succeeded
+ * Returns the result in the form of boolean.
+ *
+ * Returns: `TRUE` if the request succeeded
  */
 gboolean
 xdp_portal_session_monitor_start_finish (XdpPortal *portal,
@@ -621,10 +608,10 @@ xdp_portal_session_monitor_start_finish (XdpPortal *portal,
 
 /**
  * xdp_portal_session_monitor_stop:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  *
  * Stops session state monitoring that was started with
- * xdp_portal_session_monitor_start().
+ * [method@Portal.session_monitor_start].
  */
 void
 xdp_portal_session_monitor_stop (XdpPortal *portal)
@@ -652,15 +639,15 @@ xdp_portal_session_monitor_stop (XdpPortal *portal)
 
 /**
  * xdp_portal_session_monitor_query_end_response:
- * @portal: a #XdpPortal
+ * @portal: a [class@Portal]
  *
  * This method should be called within one second of
- * receiving a #XdpPortal::session-state-changed signal
+ * receiving a [signal@Portal::session-state-changed] signal
  * with the 'Query End' state, to acknowledge that they
  * have handled the state change.
  *
  * Possible ways to handle the state change are either
- * to call xdp_portal_session_inhibit() to prevent the
+ * to call [method@Portal.session_inhibit] to prevent the
  * session from ending, or to save your state and get
  * ready for the session to end.
  */
